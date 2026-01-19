@@ -115,6 +115,17 @@ const CodeGraph = ({ rootData }) => {
         }
     }, [rfInstance, nodes]);
 
+    const [tooltip, setTooltip] = useState({ content: '', x: 0, y: 0, visible: false });
+
+    // Tooltip handlers
+    const handleShowTooltip = useCallback((content, x, y) => {
+        setTooltip({ content, x, y, visible: true });
+    }, []);
+
+    const handleHideTooltip = useCallback(() => {
+        setTooltip(prev => ({ ...prev, visible: false }));
+    }, []);
+
     // Initial Setup
     useEffect(() => {
         if (rootData) {
@@ -126,7 +137,10 @@ const CodeGraph = ({ rootData }) => {
                     label: rootData.name,
                     expanded: false,
                     onGoToParent: handleGoToParent,
-                    parentId: null
+                    parentId: null,
+                    description: rootData.description,
+                    onShowTooltip: handleShowTooltip,
+                    onHideTooltip: handleHideTooltip
                 },
                 position: { x: 0, y: 0 }
             }];
@@ -135,7 +149,7 @@ const CodeGraph = ({ rootData }) => {
             setBreadcrumbs([rootData]);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [rootData]);
+    }, [rootData]); // Dependencies adjusted
 
     const updateBreadcrumbs = useCallback((nodeId) => {
         // Trace back from nodeId to root using parentMap
@@ -202,7 +216,10 @@ const CodeGraph = ({ rootData }) => {
                     label: child.name,
                     expanded: false,
                     onGoToParent: handleGoToParent,
-                    parentId: node.id
+                    parentId: node.id,
+                    description: child.description,
+                    onShowTooltip: handleShowTooltip,
+                    onHideTooltip: handleHideTooltip
                 },
                 position: { x: 0, y: 0 }
             }));
@@ -325,6 +342,26 @@ const CodeGraph = ({ rootData }) => {
                     ))}
                 </div>
             </div>
+
+            {/* Tooltip Overlay */}
+            {tooltip.visible && (
+                <div style={{
+                    position: 'absolute',
+                    top: tooltip.y + 10,
+                    left: tooltip.x + 10,
+                    zIndex: 9999,
+                    background: 'rgba(0,0,0,0.8)',
+                    color: 'white',
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    pointerEvents: 'none',
+                    maxWidth: '300px',
+                    fontSize: '12px',
+                    whiteSpace: 'pre-wrap'
+                }}>
+                    {tooltip.content}
+                </div>
+            )}
 
             <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', gap: '5px' }}>
                 <input

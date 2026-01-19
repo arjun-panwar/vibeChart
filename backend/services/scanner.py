@@ -5,7 +5,7 @@ from backend.schemas import FileNode
 
 import pathspec
 
-IGNORE_DIRS = {".git", "__pycache__"}
+IGNORE_DIRS = {".git", "__pycache__", "node_modules", ".venv", "venv", ".env", "dist", "build"}
 IGNORE_EXTENSIONS = {
     # Images
     ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp", ".svg",
@@ -16,6 +16,13 @@ IGNORE_EXTENSIONS = {
 def ensure_vibechart_folder(path: str) -> None:
     """
     Ensures that a hidden .vibechart folder exists in the target directory.
+    This folder is used to store cache files.
+
+    Args:
+        path (str): The target directory path.
+    
+    Raises:
+        ValueError: If the path is not a valid directory.
     """
     target_path = pathlib.Path(path)
     if not target_path.exists() or not target_path.is_dir():
@@ -27,8 +34,18 @@ def ensure_vibechart_folder(path: str) -> None:
 
 def scan_directory(path: str) -> FileNode:
     """
-    Recursively scans the directory and returns a JSON tree structure.
-    Also resolves function calls to create edges (Data Flow).
+    Recursively scans a directory to build a file system tree and performs a second pass
+    to resolving function calls and data flow edges.
+
+    Args:
+        path (str): The absolute path of the directory to scan.
+
+    Returns:
+        FileNode: The root node of the scanned directory tree, populated with children
+                  and data flow edges (calls).
+        
+    Raises:
+        ValueError: If the path does not exist.
     """
     root_path = pathlib.Path(path).resolve()
     
@@ -80,16 +97,21 @@ def scan_directory(path: str) -> FileNode:
                 children.sort(key=lambda x: (x.type != "folder", x.name.lower()))
             except PermissionError:
                 pass
+            description = "Folder"
         # Parse Python files
         elif current_path.suffix == ".py":
             from backend.services.parser import parse_python_file
-            children = parse_python_file(str(current_path))
+            children, module_doc = parse_python_file(str(current_path))
+            description = module_doc if module_doc else "Python Script"
+        else:
+            description = "File"
         
         return FileNode(
             id=node_id,
             name=node_name if node_name else str(current_path),
             type=node_type,
-            children=children
+            children=children,
+            description=description
         )
 
     # 1. First pass: Scan structure
@@ -146,9 +168,15 @@ def scan_directory(path: str) -> FileNode:
 
 def save_scan_result(path: str, data: FileNode) -> str:
     """
-    Saves the FileNode data as JSON to .vibechart/cache.json in the target directory.
-    Injects a timestamp.
-    Returns the path to the saved file.
+    Saves the FileNode data as JSON to .vibechart/cache.json in the target directory,
+    injecting the current timestamp.
+
+    Args:
+        path (str): The root directory path where .vibechart should exist.
+        data (FileNode): The data structure to serialize and save.
+
+    Returns:
+        str: The absolute path to the saved cache file.
     """
     import json
     from datetime import datetime
@@ -172,6 +200,12 @@ def save_scan_result(path: str, data: FileNode) -> str:
 def load_scan_result(path: str) -> Optional[FileNode]:
     """
     Loads scan result from .vibechart/cache.json if it exists.
+
+    Args:
+        path (str): The root directory path.
+
+    Returns:
+        Optional[FileNode]: The loaded FileNode data if cache exists, otherwise None.
     """
     import json
     target_path = pathlib.Path(path)
@@ -189,7 +223,11 @@ def load_scan_result(path: str) -> Optional[FileNode]:
 
 def clear_cache(path: str) -> None:
     """
-    Deletes the contents of the .vibechart folder in the target directory.
+    Deletes the contents of the .vibechart folder in the target directory, effectively
+    clearing the cache.
+
+    Args:
+        path (str): The root directory path.
     """
     import shutil
     target_path = pathlib.Path(path)

@@ -11,3 +11,4 @@ venv/
 # Temporary test outputs
 scan_output.json
 scan_output_qa.json
+.vibechart/

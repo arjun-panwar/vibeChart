@@ -1,17 +1,29 @@
 import ast
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from backend.schemas import FileNode
 
-def parse_python_file(file_path: str) -> List[FileNode]:
+def parse_python_file(file_path: str) -> Tuple[List[FileNode], Optional[str]]:
     """
-    Parses a Python file and returns a list of FileNodes representing
-    classes and functions found in the file.
+    Parses a Python file to extract classes and functions as FileNodes, 
+    and the module-level docstring.
+
+    Args:
+        file_path (str): The absolute path to the Python file.
+
+    Returns:
+        Tuple[List[FileNode], Optional[str]]: A tuple containing:
+            - List of FileNodes (classes/functions)
+            - Module docstring (or None if missing)
     """
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
         
         tree = ast.parse(content)
+        
+        # Extract module docstring
+        module_doc = ast.get_docstring(tree)
+        
         nodes = []
         
         for item in tree.body:
@@ -21,14 +33,24 @@ def parse_python_file(file_path: str) -> List[FileNode]:
                 
         # Sort nodes: classes first, then functions, alphabetical within type
         nodes.sort(key=lambda x: (x.type != "class", x.name.lower()))
-        return nodes
+        return nodes, module_doc
         
     except Exception as e:
         # If parsing fails (syntax error, etc.), return empty list
         # We might want to log this in a real app
-        return []
+        return [], None
 
 def _process_ast_node(item, parent_id_prefix: str) -> Optional[FileNode]:
+    """
+    Recursively processes an AST node to create a FileNode and extract function calls.
+
+    Args:
+        item (ast.AST): The AST node to process (ClassDef, FunctionDef, AsyncFunctionDef).
+        parent_id_prefix (str): Prefix to generate unique ID (e.g., file path or parent class ID).
+
+    Returns:
+        Optional[FileNode]: The constructed FileNode or None if the AST node is not relevant.
+    """
     if isinstance(item, ast.ClassDef):
         node_type = "class"
         name = item.name
@@ -43,6 +65,9 @@ def _process_ast_node(item, parent_id_prefix: str) -> Optional[FileNode]:
     # If it already has ::, we append ::Name
     # This assumes parent_id_prefix is the absolute path to file or ID of parent class
     node_id = f"{parent_id_prefix}::{name}"
+    
+    # Extract docstring
+    description = ast.get_docstring(item) or "No description provided."
     
     children = []
     
@@ -70,5 +95,6 @@ def _process_ast_node(item, parent_id_prefix: str) -> Optional[FileNode]:
         name=name,
         type=node_type,
         children=children if children else None,
-        calls=list(calls) if calls else None
+        calls=list(calls) if calls else None,
+        description=description
     )
