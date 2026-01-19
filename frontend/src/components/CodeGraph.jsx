@@ -224,6 +224,17 @@ const CodeGraph = ({ rootData }) => {
             }
         });
 
+        // Helper for unique durable colors
+        const getEdgeColor = (id) => {
+            let hash = 0;
+            for (let i = 0; i < id.length; i++) {
+                hash = id.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            // Use HSL for better control over vibrancy/visibility
+            const hue = Math.abs(hash % 360);
+            return `hsl(${hue}, 70%, 50%)`;
+        };
+
         let flowEdges = [];
         if (rootData.edges) {
             rootData.edges.forEach(edge => {
@@ -239,7 +250,7 @@ const CodeGraph = ({ rootData }) => {
                             source: sourceAnchor,
                             target: targetAnchor,
                             animated: true,
-                            style: { stroke: '#ff0072', strokeWidth: 2 },
+                            style: { stroke: getEdgeColor(edgeId), strokeWidth: 2 },
                             label: 'calls',
                             hidden: !shouldShowEdge(sourceAnchor, targetAnchor)
                         });
