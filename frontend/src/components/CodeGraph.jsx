@@ -321,25 +321,50 @@ const CodeGraph = ({ rootData }) => {
                 display: 'flex', flexDirection: 'column', gap: '5px'
             }}>
                 {/* Breadcrumbs */}
-                <div style={{ background: 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}>
-                    {breadcrumbs.length === 0 && <span style={{ color: '#888' }}>Root</span>}
-                    {breadcrumbs.map((b, i) => (
-                        <span key={b.id}>
-                            {i > 0 && " > "}
-                            <span style={{ fontWeight: i === breadcrumbs.length - 1 ? 'bold' : 'normal', cursor: 'pointer' }}
-                                onClick={() => {
-                                    // Focus on this node
-                                    const n = nodes.find(x => x.id === b.id);
-                                    if (n && rfInstance) {
-                                        rfInstance.fitView({ nodes: [n], duration: 500 });
-                                        // truncate breadcrumbs
-                                        setBreadcrumbs(breadcrumbs.slice(0, i + 1));
-                                    }
-                                }}>
-                                {b.name}
+                <div style={{ background: 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div>
+                        {breadcrumbs.length === 0 && <span style={{ color: '#888' }}>Root</span>}
+                        {breadcrumbs.map((b, i) => (
+                            <span key={b.id}>
+                                {i > 0 && " > "}
+                                <span style={{ fontWeight: i === breadcrumbs.length - 1 ? 'bold' : 'normal', cursor: 'pointer' }}
+                                    onClick={() => {
+                                        // Focus on this node
+                                        const n = nodes.find(x => x.id === b.id);
+                                        if (n && rfInstance) {
+                                            rfInstance.fitView({ nodes: [n], duration: 500 });
+                                            // truncate breadcrumbs
+                                            setBreadcrumbs(breadcrumbs.slice(0, i + 1));
+                                        }
+                                    }}>
+                                    {b.name}
+                                </span>
                             </span>
-                        </span>
-                    ))}
+                        ))}
+                    </div>
+                    {breadcrumbs.length > 0 && (
+                        <button
+                            title="Copy Path"
+                            onClick={() => {
+                                const pathStr = breadcrumbs.map(b => b.name).join('/');
+                                navigator.clipboard.writeText(pathStr);
+                                // Simple visual feedback
+                                const btn = document.activeElement;
+                                const originalText = btn.innerText;
+                                btn.innerText = "✅";
+                                setTimeout(() => btn.innerText = originalText, 1000);
+                            }}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '16px',
+                                padding: '0 4px'
+                            }}
+                        >
+                            📋
+                        </button>
+                    )}
                 </div>
             </div>
 
