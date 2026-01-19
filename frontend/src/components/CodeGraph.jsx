@@ -64,9 +64,12 @@ const getLayoutedElements = (nodes, edges) => {
 const CodeGraph = ({ rootData }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [breadcrumbs, setBreadcrumbs] = useState([]);
+    const [rfInstance, setRfInstance] = useState(null);
 
     // Helper to find a node by ID in the raw tree data
-    const findNodeData = (id, currentNode) => {
+    const findNodeData = useCallback((id, currentNode) => {
         if (currentNode.id === id) return currentNode;
         if (currentNode.children) {
             for (const child of currentNode.children) {
@@ -75,31 +78,87 @@ const CodeGraph = ({ rootData }) => {
             }
         }
         return null;
-    };
+    }, []);
 
+    // Helper: Build a map of ID -> ParentID from rootData
+    // We need this for Go to Parent and Rebuilding edges
+    const [parentMap, setParentMap] = useState({});
+
+    useEffect(() => {
+        if (rootData) {
+            const map = {};
+            const buildParentMap = (n, pid = null) => {
+                if (pid) map[n.id] = pid;
+                if (n.children) n.children.forEach(c => buildParentMap(c, n.id));
+            };
+            buildParentMap(rootData);
+            setParentMap(map);
+        }
+    }, [rootData]);
+
+    const handleGoToParent = useCallback((parentId) => {
+        if (parentId && rfInstance) {
+            // Check if parent is visible?
+            // Ideally parent should be visible if child is.
+            const parentNode = nodes.find(n => n.id === parentId);
+            if (parentNode) {
+                rfInstance.fitView({ nodes: [parentNode], duration: 800 });
+                // Update breadcrumb to parent
+                // find path to parent?
+                // Just let user click parent node to update breadcrumb fully, 
+                // or we can simulate it.
+                // Simpler: Just focus camera.
+            } else {
+                // Parent might be collapsed? 
+                // If we are clicking button on child, child is visible, so parent must be visible (or root).
+            }
+        }
+    }, [rfInstance, nodes]);
+
+    // Initial Setup
     useEffect(() => {
         if (rootData) {
             // Initial Node
             const initialNodes = [{
                 id: rootData.id,
                 type: rootData.type,
-                data: { label: rootData.name, expanded: false },
+                data: {
+                    label: rootData.name,
+                    expanded: false,
+                    onGoToParent: handleGoToParent,
+                    parentId: null
+                },
                 position: { x: 0, y: 0 }
             }];
             setNodes(initialNodes);
             setEdges([]);
-            // No layout needed for single node really, but standardizing
+            setBreadcrumbs([rootData]);
         }
-    }, [rootData, setNodes, setEdges]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rootData]);
+
+    const updateBreadcrumbs = useCallback((nodeId) => {
+        // Trace back from nodeId to root using parentMap
+        // But parentMap is ID->ID. We need objects for labels.
+        // We can reconstruct path.
+        let path = [];
+        let curr = nodeId;
+        while (curr) {
+            const data = findNodeData(curr, rootData);
+            if (data) path.unshift(data);
+            curr = parentMap[curr];
+        }
+        setBreadcrumbs(path);
+    }, [parentMap, rootData, findNodeData]);
 
     const onNodeClick = useCallback((event, node) => {
-        // 1. Find the raw data for this node to get children
+        updateBreadcrumbs(node.id);
+
+        // 1. Find the raw data for this node
         const rawNode = findNodeData(node.id, rootData);
         if (!rawNode || !rawNode.children || rawNode.children.length === 0) return;
 
         // 2. toggle expand/collapse logic
-        // For simplicity, we implement EXPAND ONLY or toggle?
-        // Let's check if children are already present in 'nodes'
         const childrenIds = rawNode.children.map(c => c.id);
         const childrenExist = childrenIds.every(id => nodes.find(n => n.id === id));
 
@@ -107,18 +166,6 @@ const CodeGraph = ({ rootData }) => {
 
         // Helper to remove descendants
         const getDescendants = (parentId, currentEdges) => {
-            // We only care about hierarchy edges for removal (source -> target where type is smoothstep/default)
-            // But actually we can just trace edges.
-            // Issue: Data flow edges might form cycles or cross hierarchy.
-            // Better: Use the raw tree structure to find descendants to remove.
-            // We already recursive find rawNode.
-
-            // Simpler: Just remove anything that is in the children list of this node (recursive)
-            // But 'nodes' state doesn't have hierarchy info except edges.
-            // Let's us edges?
-            // Hierarchy edges created by us have checkable IDs?
-            // Hierarchy edges: `${node.id}-${child.id}`
-
             const directChildEdges = currentEdges.filter(e => e.source === parentId && e.id.startsWith(parentId));
             let descendants = [];
             directChildEdges.forEach(e => {
@@ -130,9 +177,6 @@ const CodeGraph = ({ rootData }) => {
 
         if (childrenExist) {
             // COLLAPSE
-            // Removing hierarchy descendants
-            // We need to pass 'edges' to find descendants.
-            // But wait, if we use the backend tree, we know exactly what IDs are in the subtree.
             const collectSubtreeIds = (n) => {
                 let ids = [];
                 if (n.children) {
@@ -154,7 +198,12 @@ const CodeGraph = ({ rootData }) => {
             const addedNodes = rawNode.children.map(child => ({
                 id: child.id,
                 type: child.type,
-                data: { label: child.name, expanded: false },
+                data: {
+                    label: child.name,
+                    expanded: false,
+                    onGoToParent: handleGoToParent,
+                    parentId: node.id
+                },
                 position: { x: 0, y: 0 }
             }));
 
@@ -165,46 +214,18 @@ const CodeGraph = ({ rootData }) => {
         }
 
         // --- REBUILD EDGES ---
-        // 1. Hierarchy Edges
-        let hierarchyEdges = [];
-        // We need to rebuild hierarchy edges for all current nodes.
-        // Actually, simpler to just add/remove, but let's rebuild to be safe or just maintain.
-        // Let's regenerate hierarchy edges based on newNodes content?
-        // No, that's hard.
-        // Let's just add/remove hierarchy edges.
-
-        // Actually, let's rebuild ALL edges (hierarchy + data flow) from scratch based on `newNodes`.
-        // This ensures Dynamic Anchoring works.
-
-        // Helper: Is node visible?
         const isVisible = (id) => newNodes.find(n => n.id === id);
-
-        // Helper: Get Nearest Visible Ancestor (Dynamic Anchoring)
-        const getVisibleAncestor = (id, currentNode = rootData) => {
-            // This is tricky. We need parent pointers.
-            // Or we map ID -> ParentID beforehand.
-            return id; // Placeholder if not implemented map.
-        };
-
-        // Better: Build a map of ID -> ParentID from rootData
-        const parentMap = {};
-        const buildParentMap = (n, pid = null) => {
-            if (pid) parentMap[n.id] = pid;
-            if (n.children) n.children.forEach(c => buildParentMap(c, n.id));
-        };
-        buildParentMap(rootData);
 
         const getAnchor = (id) => {
             let curr = id;
             while (curr && !isVisible(curr)) {
                 curr = parentMap[curr];
             }
-            return curr; // Returns ID of visible ancestor or null (if root hidden?)
+            return curr;
         };
 
-        // 1. Hierarchy Edges (only for visible nodes)
-        // We can just traverse newNodes. For each node, if it has a visible parent, draw edge.
-        hierarchyEdges = [];
+        // 1. Hierarchy Edges
+        let hierarchyEdges = [];
         newNodes.forEach(n => {
             const pid = parentMap[n.id];
             if (pid && isVisible(pid)) {
@@ -225,10 +246,7 @@ const CodeGraph = ({ rootData }) => {
                 const sourceAnchor = getAnchor(edge.source);
                 const targetAnchor = getAnchor(edge.target);
 
-                // Only draw if both ends have a visible anchor
-                // And avoid self-loops (unless meaningful)
                 if (sourceAnchor && targetAnchor && sourceAnchor !== targetAnchor) {
-                    // Check if edge already exists (deduplication)
                     const edgeId = `flow-${sourceAnchor}-${targetAnchor}`;
                     if (!flowEdges.find(e => e.id === edgeId)) {
                         flowEdges.push({
@@ -251,26 +269,75 @@ const CodeGraph = ({ rootData }) => {
         setNodes([...layouted.nodes]);
         setEdges([...layouted.edges]);
 
-    }, [nodes, edges, rootData, setNodes, setEdges]);
-
-    // Focus feature
-    // Oh, CodeGraph is inside ReactFlowProvider? No.
-    // We need to use `onEdgeClick` prop on ReactFlow, but `fitView` comes from hook inside provider.
-    // Or we can use the instance passed to `onInit`.
-    const [rfInstance, setRfInstance] = useState(null);
+    }, [nodes, rootData, parentMap, setNodes, setEdges, handleGoToParent, findNodeData, updateBreadcrumbs]);
 
     const onEdgeClick = useCallback((event, edge) => {
         if (edge.id.startsWith('flow-') && rfInstance) {
-            // Find target node
             const targetNode = nodes.find(n => n.id === edge.target);
             if (targetNode) {
                 rfInstance.fitView({ nodes: [targetNode], duration: 1000, padding: 0.5 });
+                updateBreadcrumbs(targetNode.id);
             }
         }
-    }, [nodes, rfInstance]);
+    }, [nodes, rfInstance, updateBreadcrumbs]);
+
+    const handleSearch = () => {
+        if (!searchTerm || !rfInstance) return;
+
+        // Naive search: find first node containing term in label
+        // Only searches VISIBLE nodes.
+        const target = nodes.find(n => n.data.label.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        if (target) {
+            rfInstance.fitView({ nodes: [target], duration: 1000, padding: 0.5 });
+            updateBreadcrumbs(target.id);
+        } else {
+            alert("Node not found (it might be collapsed).");
+        }
+    };
 
     return (
-        <div style={{ width: '100vw', height: '100%', borderTop: '1px solid #ccc' }}>
+        <div style={{ width: '100vw', height: '100%', borderTop: '1px solid #ccc', position: 'relative' }}>
+            {/* Navigation Controls Overlay */}
+            <div style={{
+                position: 'absolute', top: 10, left: 10, zIndex: 1000,
+                display: 'flex', flexDirection: 'column', gap: '5px'
+            }}>
+                {/* Breadcrumbs */}
+                <div style={{ background: 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}>
+                    {breadcrumbs.length === 0 && <span style={{ color: '#888' }}>Root</span>}
+                    {breadcrumbs.map((b, i) => (
+                        <span key={b.id}>
+                            {i > 0 && " > "}
+                            <span style={{ fontWeight: i === breadcrumbs.length - 1 ? 'bold' : 'normal', cursor: 'pointer' }}
+                                onClick={() => {
+                                    // Focus on this node
+                                    const n = nodes.find(x => x.id === b.id);
+                                    if (n && rfInstance) {
+                                        rfInstance.fitView({ nodes: [n], duration: 500 });
+                                        // truncate breadcrumbs
+                                        setBreadcrumbs(breadcrumbs.slice(0, i + 1));
+                                    }
+                                }}>
+                                {b.name}
+                            </span>
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', gap: '5px' }}>
+                <input
+                    type="text"
+                    placeholder="Search node..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                    style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc' }}
+                />
+                <button onClick={handleSearch} style={{ padding: '5px 10px', cursor: 'pointer' }}>Go</button>
+            </div>
+
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
