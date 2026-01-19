@@ -157,9 +157,8 @@ def scan_directory(path: str) -> FileNode:
                             "id": f"{node.id}-{target_id}"
                         })
             
-            # Update calls with resolved IDs
-            if resolved_calls:
-                 node.calls = resolved_calls
+            # Update calls with ONLY resolved IDs (filtering out built-ins/externals)
+            node.calls = resolved_calls if resolved_calls else None
                         
         if node.children:
             for child in node.children:
