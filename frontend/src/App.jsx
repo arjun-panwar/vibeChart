@@ -38,7 +38,7 @@ function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', margin: 0, padding: 0, fontFamily: 'sans-serif' }}>
       <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', flexShrink: 0 }}>
-        <h1 style={{ margin: '0 0 10px 0', fontSize: '1.5rem' }}>Vibe Chart - Code Visualizer</h1>
+        <h1 style={{ margin: '0 0 10px 0', fontSize: '1.5rem' }}>VibeChart</h1>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <input

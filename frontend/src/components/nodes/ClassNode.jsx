@@ -21,6 +21,25 @@ export default memo(({ data }) => {
                     ⬆
                 </div>
             )}
+
+            {/* Tooltip trigger */}
+            <div
+                style={{ position: 'absolute', top: 2, right: data.parentId ? 20 : 5, cursor: 'help', fontSize: '10px', color: '#007bff' }}
+                onMouseEnter={(e) => {
+                    e.stopPropagation();
+                    if (data.onShowTooltip) {
+                        data.onShowTooltip(data.description || "No description", e.clientX, e.clientY);
+                    }
+                }}
+                onMouseLeave={(e) => {
+                    e.stopPropagation();
+                    if (data.onHideTooltip) {
+                        data.onHideTooltip();
+                    }
+                }}
+            >
+                ℹ️
+            </div>
             <Handle type="target" position={Position.Top} />
             <div style={{ fontSize: '10px', color: '#b55d00' }}>Class</div>
             <div style={{ fontWeight: 'bold' }}>C {data.label}</div>

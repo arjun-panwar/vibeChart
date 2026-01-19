@@ -115,6 +115,17 @@ const CodeGraph = ({ rootData }) => {
         }
     }, [rfInstance, nodes]);
 
+    const [tooltip, setTooltip] = useState({ content: '', x: 0, y: 0, visible: false });
+
+    // Tooltip handlers
+    const handleShowTooltip = useCallback((content, x, y) => {
+        setTooltip({ content, x, y, visible: true });
+    }, []);
+
+    const handleHideTooltip = useCallback(() => {
+        setTooltip(prev => ({ ...prev, visible: false }));
+    }, []);
+
     // Initial Setup
     useEffect(() => {
         if (rootData) {
@@ -126,7 +137,10 @@ const CodeGraph = ({ rootData }) => {
                     label: rootData.name,
                     expanded: false,
                     onGoToParent: handleGoToParent,
-                    parentId: null
+                    parentId: null,
+                    description: rootData.description,
+                    onShowTooltip: handleShowTooltip,
+                    onHideTooltip: handleHideTooltip
                 },
                 position: { x: 0, y: 0 }
             }];
@@ -135,7 +149,7 @@ const CodeGraph = ({ rootData }) => {
             setBreadcrumbs([rootData]);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [rootData]);
+    }, [rootData]); // Dependencies adjusted
 
     const updateBreadcrumbs = useCallback((nodeId) => {
         // Trace back from nodeId to root using parentMap
@@ -202,7 +216,10 @@ const CodeGraph = ({ rootData }) => {
                     label: child.name,
                     expanded: false,
                     onGoToParent: handleGoToParent,
-                    parentId: node.id
+                    parentId: node.id,
+                    description: child.description,
+                    onShowTooltip: handleShowTooltip,
+                    onHideTooltip: handleHideTooltip
                 },
                 position: { x: 0, y: 0 }
             }));
@@ -304,27 +321,72 @@ const CodeGraph = ({ rootData }) => {
                 display: 'flex', flexDirection: 'column', gap: '5px'
             }}>
                 {/* Breadcrumbs */}
-                <div style={{ background: 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}>
-                    {breadcrumbs.length === 0 && <span style={{ color: '#888' }}>Root</span>}
-                    {breadcrumbs.map((b, i) => (
-                        <span key={b.id}>
-                            {i > 0 && " > "}
-                            <span style={{ fontWeight: i === breadcrumbs.length - 1 ? 'bold' : 'normal', cursor: 'pointer' }}
-                                onClick={() => {
-                                    // Focus on this node
-                                    const n = nodes.find(x => x.id === b.id);
-                                    if (n && rfInstance) {
-                                        rfInstance.fitView({ nodes: [n], duration: 500 });
-                                        // truncate breadcrumbs
-                                        setBreadcrumbs(breadcrumbs.slice(0, i + 1));
-                                    }
-                                }}>
-                                {b.name}
+                <div style={{ background: 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div>
+                        {breadcrumbs.length === 0 && <span style={{ color: '#888' }}>Root</span>}
+                        {breadcrumbs.map((b, i) => (
+                            <span key={b.id}>
+                                {i > 0 && " > "}
+                                <span style={{ fontWeight: i === breadcrumbs.length - 1 ? 'bold' : 'normal', cursor: 'pointer' }}
+                                    onClick={() => {
+                                        // Focus on this node
+                                        const n = nodes.find(x => x.id === b.id);
+                                        if (n && rfInstance) {
+                                            rfInstance.fitView({ nodes: [n], duration: 500 });
+                                            // truncate breadcrumbs
+                                            setBreadcrumbs(breadcrumbs.slice(0, i + 1));
+                                        }
+                                    }}>
+                                    {b.name}
+                                </span>
                             </span>
-                        </span>
-                    ))}
+                        ))}
+                    </div>
+                    {breadcrumbs.length > 0 && (
+                        <button
+                            title="Copy Path"
+                            onClick={() => {
+                                const pathStr = breadcrumbs.map(b => b.name).join('/');
+                                navigator.clipboard.writeText(pathStr);
+                                // Simple visual feedback
+                                const btn = document.activeElement;
+                                const originalText = btn.innerText;
+                                btn.innerText = "✅";
+                                setTimeout(() => btn.innerText = originalText, 1000);
+                            }}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '16px',
+                                padding: '0 4px'
+                            }}
+                        >
+                            📋
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Tooltip Overlay */}
+            {tooltip.visible && (
+                <div style={{
+                    position: 'absolute',
+                    top: tooltip.y + 10,
+                    left: tooltip.x + 10,
+                    zIndex: 9999,
+                    background: 'rgba(0,0,0,0.8)',
+                    color: 'white',
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    pointerEvents: 'none',
+                    maxWidth: '300px',
+                    fontSize: '12px',
+                    whiteSpace: 'pre-wrap'
+                }}>
+                    {tooltip.content}
+                </div>
+            )}
 
             <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', gap: '5px' }}>
                 <input
