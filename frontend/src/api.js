@@ -21,3 +21,12 @@ export const reanalyzePath = async (path) => {
     throw error;
   }
 };
+export const getConfig = async () => {
+  try {
+    const response = await axios.get(`${API_Base}/api/config`);
+    return response.data;
+  } catch (error) {
+    console.warn("Error fetching config:", error);
+    return null;
+  }
+};

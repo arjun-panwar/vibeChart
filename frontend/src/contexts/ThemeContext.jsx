@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { getConfig } from '../api';
 
 const ThemeContext = createContext();
 
@@ -11,6 +12,21 @@ export const ThemeProvider = ({ children }) => {
     };
 
     const [theme, setTheme] = useState(getInitialTheme);
+
+    // Fetch config on mount to override default if no user preference
+    useEffect(() => {
+        const fetchConfig = async () => {
+            // If user has already manually set a preference, verify and keep it. 
+            // Logic: If localStorage exists, we prioritize it. 
+            if (localStorage.getItem('theme')) return;
+
+            const config = await getConfig();
+            if (config && config.defaultTheme) {
+                setTheme(config.defaultTheme);
+            }
+        };
+        fetchConfig();
+    }, []);
 
     useEffect(() => {
         // Update data-theme attribute on document root
