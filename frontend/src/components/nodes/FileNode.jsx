@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 
-export default memo(({ data }) => {
+export default memo(({ data, id }) => {
     return (
         <div style={{
             padding: '10px',
@@ -44,6 +44,26 @@ export default memo(({ data }) => {
             <Handle type="target" position={Position.Top} />
             <div style={{ fontSize: '10px', color: '#888' }}>File</div>
             <div>📄 {data.label}</div>
+
+            {/* Footer with Toggle Button */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '5px', gap: '5px' }}>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (data.onToggleConnections) data.onToggleConnections(id);
+                    }}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: data.isConnectionsActive ? '#007bff' : '#888',
+                        fontSize: '12px'
+                    }}
+                    title="Toggle Connections"
+                >
+                    🔗
+                </button>
+            </div>
             <Handle type="source" position={Position.Bottom} />
         </div>
     );

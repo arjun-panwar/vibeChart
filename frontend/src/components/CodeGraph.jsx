@@ -72,6 +72,7 @@ const CodeGraph = ({ rootData }) => {
 
     const [autoFit, setAutoFit] = useState(true);
     const [centerNode, setCenterNode] = useState(false);
+    const [activeConnectionNodeId, setActiveConnectionNodeId] = useState(null);
     const [zoomLevel, setZoomLevel] = useState(1);
 
     // Update zoom level state when graph is moved/zoomed by user
@@ -145,6 +146,10 @@ const CodeGraph = ({ rootData }) => {
         setTooltip(prev => ({ ...prev, visible: false }));
     }, []);
 
+    const handleToggleConnections = useCallback((nodeId) => {
+        setActiveConnectionNodeId(prev => (prev === nodeId ? null : nodeId));
+    }, []);
+
     // Initial Setup
     useEffect(() => {
         if (rootData) {
@@ -159,7 +164,9 @@ const CodeGraph = ({ rootData }) => {
                     parentId: null,
                     description: rootData.description,
                     onShowTooltip: handleShowTooltip,
-                    onHideTooltip: handleHideTooltip
+                    onHideTooltip: handleHideTooltip,
+                    onToggleConnections: handleToggleConnections,
+                    isConnectionsActive: activeConnectionNodeId === rootData.id
                 },
                 position: { x: 0, y: 0 }
             }];
@@ -183,6 +190,73 @@ const CodeGraph = ({ rootData }) => {
         }
         setBreadcrumbs(path);
     }, [parentMap, rootData, findNodeData]);
+
+    const generateEdges = useCallback((currentNodes, activeId) => {
+        const isVisible = (id) => currentNodes.find(n => n.id === id);
+
+        const getAnchor = (id) => {
+            let curr = id;
+            while (curr && !isVisible(curr)) {
+                curr = parentMap[curr];
+            }
+            return curr;
+        };
+
+        const shouldShowEdge = (sourceId, targetId) => {
+            if (!activeId) return false;
+            const sAnchor = getAnchor(sourceId);
+            const tAnchor = getAnchor(targetId);
+            if (activeId === sAnchor || activeId === tAnchor) return true;
+            return false;
+        };
+
+        let hierarchyEdges = [];
+        currentNodes.forEach(n => {
+            const pid = parentMap[n.id];
+            if (pid && isVisible(pid)) {
+                hierarchyEdges.push({
+                    id: `${pid}-${n.id}`,
+                    source: pid,
+                    target: n.id,
+                    type: 'smoothstep',
+                    style: { stroke: '#ccc' }
+                });
+            }
+        });
+
+        let flowEdges = [];
+        if (rootData.edges) {
+            rootData.edges.forEach(edge => {
+                const sourceAnchor = getAnchor(edge.source);
+                const targetAnchor = getAnchor(edge.target);
+
+                if (sourceAnchor && targetAnchor && sourceAnchor !== targetAnchor) {
+                    const edgeId = `flow-${sourceAnchor}-${targetAnchor}`;
+                    // Avoid duplicates
+                    if (!flowEdges.find(e => e.id === edgeId)) {
+                        flowEdges.push({
+                            id: edgeId,
+                            source: sourceAnchor,
+                            target: targetAnchor,
+                            animated: true,
+                            style: { stroke: '#ff0072', strokeWidth: 2 },
+                            label: 'calls',
+                            hidden: !shouldShowEdge(sourceAnchor, targetAnchor)
+                        });
+                    }
+                }
+            });
+        }
+        return [...hierarchyEdges, ...flowEdges];
+    }, [parentMap, rootData]);
+
+    // Reactive Edge Update
+    useEffect(() => {
+        if (nodes.length > 0) {
+            const updatedEdges = generateEdges(nodes, activeConnectionNodeId);
+            setEdges(updatedEdges);
+        }
+    }, [activeConnectionNodeId, nodes, generateEdges, setEdges]);
 
     const onNodeClick = useCallback((event, node) => {
         updateBreadcrumbs(node.id);
@@ -238,7 +312,9 @@ const CodeGraph = ({ rootData }) => {
                     parentId: node.id,
                     description: child.description,
                     onShowTooltip: handleShowTooltip,
-                    onHideTooltip: handleHideTooltip
+                    onHideTooltip: handleHideTooltip,
+                    onToggleConnections: handleToggleConnections,
+                    isConnectionsActive: activeConnectionNodeId === child.id
                 },
                 position: { x: 0, y: 0 }
             }));
@@ -250,55 +326,7 @@ const CodeGraph = ({ rootData }) => {
         }
 
         // --- REBUILD EDGES ---
-        const isVisible = (id) => newNodes.find(n => n.id === id);
-
-        const getAnchor = (id) => {
-            let curr = id;
-            while (curr && !isVisible(curr)) {
-                curr = parentMap[curr];
-            }
-            return curr;
-        };
-
-        // 1. Hierarchy Edges
-        let hierarchyEdges = [];
-        newNodes.forEach(n => {
-            const pid = parentMap[n.id];
-            if (pid && isVisible(pid)) {
-                hierarchyEdges.push({
-                    id: `${pid}-${n.id}`,
-                    source: pid,
-                    target: n.id,
-                    type: 'smoothstep',
-                    style: { stroke: '#ccc' }
-                });
-            }
-        });
-
-        // 2. Data Flow Edges
-        let flowEdges = [];
-        if (rootData.edges) {
-            rootData.edges.forEach(edge => {
-                const sourceAnchor = getAnchor(edge.source);
-                const targetAnchor = getAnchor(edge.target);
-
-                if (sourceAnchor && targetAnchor && sourceAnchor !== targetAnchor) {
-                    const edgeId = `flow-${sourceAnchor}-${targetAnchor}`;
-                    if (!flowEdges.find(e => e.id === edgeId)) {
-                        flowEdges.push({
-                            id: edgeId,
-                            source: sourceAnchor,
-                            target: targetAnchor,
-                            animated: true,
-                            style: { stroke: '#ff0072', strokeWidth: 2 },
-                            label: 'calls'
-                        });
-                    }
-                }
-            });
-        }
-
-        const finalEdges = [...hierarchyEdges, ...flowEdges];
+        const finalEdges = generateEdges(newNodes, activeConnectionNodeId);
 
         // 3. Re-calculate layout
         const layouted = getLayoutedElements(newNodes, finalEdges);
@@ -327,7 +355,7 @@ const CodeGraph = ({ rootData }) => {
             }
         }
 
-    }, [nodes, rootData, parentMap, setNodes, setEdges, handleGoToParent, findNodeData, updateBreadcrumbs, rfInstance, autoFit, centerNode]);
+    }, [nodes, rootData, parentMap, setNodes, setEdges, handleGoToParent, findNodeData, updateBreadcrumbs, rfInstance, autoFit, centerNode, activeConnectionNodeId, handleToggleConnections, generateEdges]);
 
     const onEdgeClick = useCallback((event, edge) => {
         if (edge.id.startsWith('flow-') && rfInstance && autoFit) {
