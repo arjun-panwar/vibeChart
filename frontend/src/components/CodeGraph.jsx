@@ -70,6 +70,23 @@ const CodeGraph = ({ rootData }) => {
     const [rfInstance, setRfInstance] = useState(null);
     const { theme } = useTheme();
 
+    const [autoFit, setAutoFit] = useState(true);
+    const [centerNode, setCenterNode] = useState(false);
+    const [zoomLevel, setZoomLevel] = useState(1);
+
+    // Update zoom level state when graph is moved/zoomed by user
+    const onMove = useCallback((event, viewport) => {
+        setZoomLevel(viewport.zoom);
+    }, []);
+
+    const handleZoomChange = (e) => {
+        const newZoom = parseFloat(e.target.value);
+        setZoomLevel(newZoom);
+        if (rfInstance) {
+            rfInstance.zoomTo(newZoom, { duration: 300 });
+        }
+    };
+
     // Helper to find a node by ID in the raw tree data
     const findNodeData = useCallback((id, currentNode) => {
         if (currentNode.id === id) return currentNode;
@@ -288,17 +305,39 @@ const CodeGraph = ({ rootData }) => {
         setNodes([...layouted.nodes]);
         setEdges([...layouted.edges]);
 
-    }, [nodes, rootData, parentMap, setNodes, setEdges, handleGoToParent, findNodeData, updateBreadcrumbs]);
+        // Camera Logic (User Request)
+        if (rfInstance) {
+            const updatedNode = layouted.nodes.find(n => n.id === node.id);
+            if (updatedNode) {
+                setTimeout(() => {
+                    if (autoFit) {
+                        // Option A: Fit Canvas (Global)
+                        rfInstance.fitView({ duration: 800, padding: 0.1 });
+                    } else if (centerNode) {
+                        // Option B: Center Expanded Node (Local)
+                        rfInstance.fitView({
+                            nodes: [updatedNode],
+                            duration: 800,
+                            padding: 0.5,
+                            minZoom: 0.5,
+                            maxZoom: 1.5
+                        });
+                    }
+                }, 50);
+            }
+        }
+
+    }, [nodes, rootData, parentMap, setNodes, setEdges, handleGoToParent, findNodeData, updateBreadcrumbs, rfInstance, autoFit, centerNode]);
 
     const onEdgeClick = useCallback((event, edge) => {
-        if (edge.id.startsWith('flow-') && rfInstance) {
+        if (edge.id.startsWith('flow-') && rfInstance && autoFit) {
             const targetNode = nodes.find(n => n.id === edge.target);
             if (targetNode) {
                 rfInstance.fitView({ nodes: [targetNode], duration: 1000, padding: 0.5 });
                 updateBreadcrumbs(targetNode.id);
             }
         }
-    }, [nodes, rfInstance, updateBreadcrumbs]);
+    }, [nodes, rfInstance, updateBreadcrumbs, autoFit]);
 
     const handleSearch = () => {
         if (!searchTerm || !rfInstance) return;
@@ -381,6 +420,58 @@ const CodeGraph = ({ rootData }) => {
                 </div>
             </div>
 
+            {/* View Controls: Auto Fit & Zoom */}
+            <div style={{
+                position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
+                display: 'flex', alignItems: 'center', gap: '15px',
+                background: 'var(--header-bg)',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--header-border)',
+                color: 'var(--text-color)',
+                fontSize: '13px'
+            }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={autoFit}
+                        onChange={e => {
+                            setAutoFit(e.target.checked);
+                            if (e.target.checked) setCenterNode(false);
+                        }}
+                    />
+                    Auto Fit Canvas
+                </label>
+
+                <div style={{ width: '1px', height: '16px', background: 'var(--text-color)', opacity: 0.2 }}></div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={centerNode}
+                        onChange={e => {
+                            setCenterNode(e.target.checked);
+                            if (e.target.checked) setAutoFit(false);
+                        }}
+                    />
+                    Center Node
+                </label>
+
+                <div style={{ width: '1px', height: '16px', background: 'var(--text-color)', opacity: 0.2 }}></div>
+                <span style={{ opacity: 0.8 }}>Zoom</span>
+                <input
+                    type="range"
+                    min="0.1"
+                    max="2"
+                    step="0.1"
+                    value={zoomLevel}
+                    onChange={handleZoomChange}
+                    style={{ width: '100px', cursor: 'pointer' }}
+                />
+                <span style={{ width: '24px', textAlign: 'right', opacity: 0.8 }}>
+                    {zoomLevel.toFixed(1)}x
+                </span>
+            </div>
             {/* Tooltip Overlay */}
             {tooltip.visible && (
                 <div style={{
@@ -428,6 +519,7 @@ const CodeGraph = ({ rootData }) => {
                 onNodeClick={onNodeClick}
                 onEdgeClick={onEdgeClick}
                 onInit={setRfInstance}
+                onMove={onMove}
                 nodeTypes={nodeTypes}
                 fitView
             >
