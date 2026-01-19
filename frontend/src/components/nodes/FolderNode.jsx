@@ -5,9 +5,10 @@ export default memo(({ data }) => {
     return (
         <div style={{
             padding: '10px',
-            border: '1px solid #777',
+            border: '1px solid var(--node-border)',
             borderRadius: '5px',
-            background: '#fffbf0',
+            background: 'var(--node-bg)',
+            color: 'var(--node-text)',
             minWidth: '150px',
             textAlign: 'center',
             fontWeight: 'bold',

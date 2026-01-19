@@ -7,7 +7,8 @@ export default memo(({ data }) => {
             padding: '10px',
             border: '1px solid #b55d00',
             borderRadius: '5px',
-            background: '#ffebd4',
+            background: 'var(--node-bg)',
+            color: 'var(--node-text)',
             minWidth: '150px',
             textAlign: 'center',
             position: 'relative'

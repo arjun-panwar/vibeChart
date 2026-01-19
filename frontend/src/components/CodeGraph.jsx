@@ -8,6 +8,7 @@ import ReactFlow, {
 } from 'reactflow';
 import dagre from 'dagre';
 import 'reactflow/dist/style.css';
+import { useTheme } from '../contexts/ThemeContext';
 
 import FolderNode from './nodes/FolderNode';
 import FileNode from './nodes/FileNode';
@@ -67,6 +68,7 @@ const CodeGraph = ({ rootData }) => {
     const [searchTerm, setSearchTerm] = useState("");
     const [breadcrumbs, setBreadcrumbs] = useState([]);
     const [rfInstance, setRfInstance] = useState(null);
+    const { theme } = useTheme();
 
     // Helper to find a node by ID in the raw tree data
     const findNodeData = useCallback((id, currentNode) => {
@@ -314,16 +316,26 @@ const CodeGraph = ({ rootData }) => {
     };
 
     return (
-        <div style={{ width: '100vw', height: '100%', borderTop: '1px solid #ccc', position: 'relative' }}>
+        <div style={{ width: '100%', height: '100%', borderTop: '1px solid var(--header-border)', position: 'relative' }}>
             {/* Navigation Controls Overlay */}
             <div style={{
                 position: 'absolute', top: 10, left: 10, zIndex: 1000,
                 display: 'flex', flexDirection: 'column', gap: '5px'
             }}>
                 {/* Breadcrumbs */}
-                <div style={{ background: 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                    background: 'var(--header-bg)',
+                    color: 'var(--text-color)',
+                    padding: '5px 10px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--header-border)',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}>
                     <div>
-                        {breadcrumbs.length === 0 && <span style={{ color: '#888' }}>Root</span>}
+                        {breadcrumbs.length === 0 && <span style={{ opacity: 0.6 }}>Root</span>}
                         {breadcrumbs.map((b, i) => (
                             <span key={b.id}>
                                 {i > 0 && " > "}
@@ -359,7 +371,8 @@ const CodeGraph = ({ rootData }) => {
                                 border: 'none',
                                 cursor: 'pointer',
                                 fontSize: '16px',
-                                padding: '0 4px'
+                                padding: '0 4px',
+                                color: 'var(--text-color)'
                             }}
                         >
                             📋
@@ -375,14 +388,15 @@ const CodeGraph = ({ rootData }) => {
                     top: tooltip.y + 10,
                     left: tooltip.x + 10,
                     zIndex: 9999,
-                    background: 'rgba(0,0,0,0.8)',
-                    color: 'white',
+                    background: 'var(--tooltip-bg)',
+                    color: 'var(--tooltip-text)',
                     padding: '8px 12px',
                     borderRadius: '4px',
                     pointerEvents: 'none',
                     maxWidth: '300px',
                     fontSize: '12px',
-                    whiteSpace: 'pre-wrap'
+                    whiteSpace: 'pre-wrap',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                 }}>
                     {tooltip.content}
                 </div>
@@ -395,7 +409,13 @@ const CodeGraph = ({ rootData }) => {
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                    style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc' }}
+                    style={{
+                        padding: '5px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--header-border)',
+                        background: 'var(--header-bg)',
+                        color: 'var(--text-color)'
+                    }}
                 />
                 <button onClick={handleSearch} style={{ padding: '5px 10px', cursor: 'pointer' }}>Go</button>
             </div>
@@ -412,7 +432,7 @@ const CodeGraph = ({ rootData }) => {
                 fitView
             >
                 <Controls />
-                <Background color="#aaa" gap={16} />
+                <Background color={theme === 'dark' ? '#555' : '#aaa'} gap={16} />
             </ReactFlow>
         </div>
     );
