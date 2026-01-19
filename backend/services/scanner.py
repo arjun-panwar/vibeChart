@@ -101,10 +101,15 @@ def scan_directory(path: str) -> FileNode:
 
 def save_scan_result(path: str, data: FileNode) -> str:
     """
-    Saves the FileNode data as JSON to .vibechart/structure.json in the target directory.
+    Saves the FileNode data as JSON to .vibechart/cache.json in the target directory.
+    Injects a timestamp.
     Returns the path to the saved file.
     """
     import json
+    from datetime import datetime
+    
+    # Add timestamp
+    data.last_analyzed = datetime.now().isoformat()
     
     target_path = pathlib.Path(path)
     vibechart_path = target_path / ".vibechart"
@@ -112,9 +117,42 @@ def save_scan_result(path: str, data: FileNode) -> str:
     if not vibechart_path.exists():
         vibechart_path.mkdir()
     
-    output_file = vibechart_path / "structure.json"
+    output_file = vibechart_path / "cache.json"
     
     with open(output_file, 'w') as f:
         f.write(data.model_dump_json(indent=2))
         
     return str(output_file)
+
+def load_scan_result(path: str) -> Optional[FileNode]:
+    """
+    Loads scan result from .vibechart/cache.json if it exists.
+    """
+    import json
+    target_path = pathlib.Path(path)
+    cache_file = target_path / ".vibechart" / "cache.json"
+    
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r') as f:
+                data = json.load(f)
+                return FileNode(**data)
+        except Exception:
+            pass # Invalid cache, ignore
+            
+    return None
+
+def clear_cache(path: str) -> None:
+    """
+    Deletes the contents of the .vibechart folder in the target directory.
+    """
+    import shutil
+    target_path = pathlib.Path(path)
+    vibechart_path = target_path / ".vibechart"
+    
+    if vibechart_path.exists() and vibechart_path.is_dir():
+        for item in vibechart_path.iterdir():
+            if item.is_file():
+                item.unlink()
+            elif item.is_dir():
+                shutil.rmtree(item)
