@@ -67,7 +67,7 @@ def _process_ast_node(item, parent_id_prefix: str) -> Optional[FileNode]:
     node_id = f"{parent_id_prefix}::{name}"
     
     # Extract docstring
-    description = ast.get_docstring(item) or "No description provided."
+    description = ast.get_docstring(item)
     
     children = []
     

@@ -31,6 +31,6 @@ class FileNode(BaseModel):
     last_analyzed: Optional[str] = None
     calls: Optional[List[str]] = None  # List of function names called by this node
     edges: Optional[List[Dict[str, str]]] = None  # List of resolved edges (only on root?)
-    description: Optional[str] = "No description provided."
+    description: Optional[str] = None
 
 FileNode.model_rebuild()
