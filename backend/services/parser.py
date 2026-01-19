@@ -47,6 +47,7 @@ def _process_ast_node(item, parent_id_prefix: str) -> Optional[FileNode]:
     children = []
     
     # If it's a class, we want to look for methods inside
+    # If it's a class, we want to look for methods inside
     if isinstance(item, ast.ClassDef):
         for child_item in item.body:
             child_node = _process_ast_node(child_item, node_id)
@@ -55,9 +56,19 @@ def _process_ast_node(item, parent_id_prefix: str) -> Optional[FileNode]:
         # Sort methods
         children.sort(key=lambda x: x.name.lower())
 
+    # Extract calls
+    calls = set()
+    for child in ast.walk(item):
+        if isinstance(child, ast.Call):
+            if isinstance(child.func, ast.Name):
+                calls.add(child.func.id)
+            elif isinstance(child.func, ast.Attribute):
+                calls.add(child.func.attr)
+    
     return FileNode(
         id=node_id,
         name=name,
         type=node_type,
-        children=children if children else None
+        children=children if children else None,
+        calls=list(calls) if calls else None
     )

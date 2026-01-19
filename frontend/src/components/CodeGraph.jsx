@@ -104,55 +104,170 @@ const CodeGraph = ({ rootData }) => {
         const childrenExist = childrenIds.every(id => nodes.find(n => n.id === id));
 
         let newNodes = [...nodes];
-        let newEdges = [...edges];
+
+        // Helper to remove descendants
+        const getDescendants = (parentId, currentEdges) => {
+            // We only care about hierarchy edges for removal (source -> target where type is smoothstep/default)
+            // But actually we can just trace edges.
+            // Issue: Data flow edges might form cycles or cross hierarchy.
+            // Better: Use the raw tree structure to find descendants to remove.
+            // We already recursive find rawNode.
+
+            // Simpler: Just remove anything that is in the children list of this node (recursive)
+            // But 'nodes' state doesn't have hierarchy info except edges.
+            // Let's us edges?
+            // Hierarchy edges created by us have checkable IDs?
+            // Hierarchy edges: `${node.id}-${child.id}`
+
+            const directChildEdges = currentEdges.filter(e => e.source === parentId && e.id.startsWith(parentId));
+            let descendants = [];
+            directChildEdges.forEach(e => {
+                descendants.push(e.target);
+                descendants = [...descendants, ...getDescendants(e.target, currentEdges)];
+            });
+            return descendants;
+        };
 
         if (childrenExist) {
-            // COLLAPSE: Remove descendants
-            // Recursive removal
-            const getDescendants = (parentId) => {
-                const directChildren = edges.filter(e => e.source === parentId).map(e => e.target);
-                let descendants = [...directChildren];
-                directChildren.forEach(childId => {
-                    descendants = [...descendants, ...getDescendants(childId)];
-                });
-                return descendants;
+            // COLLAPSE
+            // Removing hierarchy descendants
+            // We need to pass 'edges' to find descendants.
+            // But wait, if we use the backend tree, we know exactly what IDs are in the subtree.
+            const collectSubtreeIds = (n) => {
+                let ids = [];
+                if (n.children) {
+                    n.children.forEach(c => {
+                        ids.push(c.id);
+                        ids = [...ids, ...collectSubtreeIds(c)];
+                    });
+                }
+                return ids;
             };
-            const nodesToRemove = getDescendants(node.id);
+            const nodesToRemove = collectSubtreeIds(rawNode);
             newNodes = newNodes.filter(n => !nodesToRemove.includes(n.id));
-            newEdges = newEdges.filter(e => !nodesToRemove.includes(e.target) && e.source !== node.id);
 
-            // Mark as collpased
+            // Mark as collapsed
             newNodes = newNodes.map(n => n.id === node.id ? { ...n, data: { ...n.data, expanded: false } } : n);
 
         } else {
-            // EXPAND: Add direct children
+            // EXPAND
             const addedNodes = rawNode.children.map(child => ({
                 id: child.id,
-                type: child.type, // "folder", "file", "class", "function"
+                type: child.type,
                 data: { label: child.name, expanded: false },
-                position: { x: 0, y: 0 } // Layouter will fix this
-            }));
-
-            const addedEdges = rawNode.children.map(child => ({
-                id: `${node.id}-${child.id}`,
-                source: node.id,
-                target: child.id,
-                type: 'smoothstep'
+                position: { x: 0, y: 0 }
             }));
 
             newNodes = [...newNodes, ...addedNodes];
-            newEdges = [...newEdges, ...addedEdges];
 
             // Mark as expanded
             newNodes = newNodes.map(n => n.id === node.id ? { ...n, data: { ...n.data, expanded: true } } : n);
         }
 
+        // --- REBUILD EDGES ---
+        // 1. Hierarchy Edges
+        let hierarchyEdges = [];
+        // We need to rebuild hierarchy edges for all current nodes.
+        // Actually, simpler to just add/remove, but let's rebuild to be safe or just maintain.
+        // Let's regenerate hierarchy edges based on newNodes content?
+        // No, that's hard.
+        // Let's just add/remove hierarchy edges.
+
+        // Actually, let's rebuild ALL edges (hierarchy + data flow) from scratch based on `newNodes`.
+        // This ensures Dynamic Anchoring works.
+
+        // Helper: Is node visible?
+        const isVisible = (id) => newNodes.find(n => n.id === id);
+
+        // Helper: Get Nearest Visible Ancestor (Dynamic Anchoring)
+        const getVisibleAncestor = (id, currentNode = rootData) => {
+            // This is tricky. We need parent pointers.
+            // Or we map ID -> ParentID beforehand.
+            return id; // Placeholder if not implemented map.
+        };
+
+        // Better: Build a map of ID -> ParentID from rootData
+        const parentMap = {};
+        const buildParentMap = (n, pid = null) => {
+            if (pid) parentMap[n.id] = pid;
+            if (n.children) n.children.forEach(c => buildParentMap(c, n.id));
+        };
+        buildParentMap(rootData);
+
+        const getAnchor = (id) => {
+            let curr = id;
+            while (curr && !isVisible(curr)) {
+                curr = parentMap[curr];
+            }
+            return curr; // Returns ID of visible ancestor or null (if root hidden?)
+        };
+
+        // 1. Hierarchy Edges (only for visible nodes)
+        // We can just traverse newNodes. For each node, if it has a visible parent, draw edge.
+        hierarchyEdges = [];
+        newNodes.forEach(n => {
+            const pid = parentMap[n.id];
+            if (pid && isVisible(pid)) {
+                hierarchyEdges.push({
+                    id: `${pid}-${n.id}`,
+                    source: pid,
+                    target: n.id,
+                    type: 'smoothstep',
+                    style: { stroke: '#ccc' }
+                });
+            }
+        });
+
+        // 2. Data Flow Edges
+        let flowEdges = [];
+        if (rootData.edges) {
+            rootData.edges.forEach(edge => {
+                const sourceAnchor = getAnchor(edge.source);
+                const targetAnchor = getAnchor(edge.target);
+
+                // Only draw if both ends have a visible anchor
+                // And avoid self-loops (unless meaningful)
+                if (sourceAnchor && targetAnchor && sourceAnchor !== targetAnchor) {
+                    // Check if edge already exists (deduplication)
+                    const edgeId = `flow-${sourceAnchor}-${targetAnchor}`;
+                    if (!flowEdges.find(e => e.id === edgeId)) {
+                        flowEdges.push({
+                            id: edgeId,
+                            source: sourceAnchor,
+                            target: targetAnchor,
+                            animated: true,
+                            style: { stroke: '#ff0072', strokeWidth: 2 },
+                            label: 'calls'
+                        });
+                    }
+                }
+            });
+        }
+
+        const finalEdges = [...hierarchyEdges, ...flowEdges];
+
         // 3. Re-calculate layout
-        const layouted = getLayoutedElements(newNodes, newEdges);
+        const layouted = getLayoutedElements(newNodes, finalEdges);
         setNodes([...layouted.nodes]);
         setEdges([...layouted.edges]);
 
     }, [nodes, edges, rootData, setNodes, setEdges]);
+
+    // Focus feature
+    // Oh, CodeGraph is inside ReactFlowProvider? No.
+    // We need to use `onEdgeClick` prop on ReactFlow, but `fitView` comes from hook inside provider.
+    // Or we can use the instance passed to `onInit`.
+    const [rfInstance, setRfInstance] = useState(null);
+
+    const onEdgeClick = useCallback((event, edge) => {
+        if (edge.id.startsWith('flow-') && rfInstance) {
+            // Find target node
+            const targetNode = nodes.find(n => n.id === edge.target);
+            if (targetNode) {
+                rfInstance.fitView({ nodes: [targetNode], duration: 1000, padding: 0.5 });
+            }
+        }
+    }, [nodes, rfInstance]);
 
     return (
         <div style={{ width: '100vw', height: '100%', borderTop: '1px solid #ccc' }}>
@@ -162,6 +277,8 @@ const CodeGraph = ({ rootData }) => {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onNodeClick={onNodeClick}
+                onEdgeClick={onEdgeClick}
+                onInit={setRfInstance}
                 nodeTypes={nodeTypes}
                 fitView
             >

@@ -28,9 +28,7 @@ def ensure_vibechart_folder(path: str) -> None:
 def scan_directory(path: str) -> FileNode:
     """
     Recursively scans the directory and returns a JSON tree structure.
-    Ignores directories specified in IGNORE_DIRS.
-    Ignores files matching extensions in IGNORE_EXTENSIONS.
-    Respects .gitignore rules if present in the root directory.
+    Also resolves function calls to create edges (Data Flow).
     """
     root_path = pathlib.Path(path).resolve()
     
@@ -57,13 +55,11 @@ def scan_directory(path: str) -> FileNode:
             return None
 
         # Check against .gitignore
-        # Calculate relative path from root to check against spec
         try:
             rel_path = current_path.relative_to(root_path)
             if spec and spec.match_file(str(rel_path)):
                 return None
         except ValueError:
-            # Should hopefully not happen given we traverse down from root
             pass
 
         node_name = current_path.name
@@ -81,7 +77,6 @@ def scan_directory(path: str) -> FileNode:
                     if child_node:
                         children.append(child_node)
                 
-                # Sort children: folders first, then files, alphabetically
                 children.sort(key=lambda x: (x.type != "folder", x.name.lower()))
             except PermissionError:
                 pass
@@ -97,7 +92,57 @@ def scan_directory(path: str) -> FileNode:
             children=children
         )
 
-    return _scan(root_path)
+    # 1. First pass: Scan structure
+    root_node = _scan(root_path)
+    if not root_node:
+        return root_node
+
+    # --- Data Flow Resolution ---
+    
+    # 2. Build Symbol Table: Name -> List[ID]
+    symbol_table = {}
+    
+    def build_symbol_table(node: FileNode):
+        if node.type in ["class", "function"]:
+            if node.name not in symbol_table:
+                symbol_table[node.name] = []
+            symbol_table[node.name].append(node.id)
+            
+        if node.children:
+            for child in node.children:
+                build_symbol_table(child)
+                
+    build_symbol_table(root_node)
+    
+    # 3. Resolve Calls -> Edges
+    edges = []
+    
+    def resolve_calls(node: FileNode):
+        if node.calls:
+            for call_name in node.calls:
+                # Naive resolution: find first match in symbol table
+                if call_name in symbol_table:
+                    target_ids = symbol_table[call_name]
+                    target_id = target_ids[0]
+                    
+                    if target_id != node.id:
+                        edges.append({
+                            "source": node.id,
+                            "target": target_id,
+                            "id": f"{node.id}-{target_id}"
+                        })
+                        
+        if node.children:
+            for child in node.children:
+                resolve_calls(child)
+                
+    resolve_calls(root_node)
+    
+    # 4. Attach edges to root
+    if edges:
+        root_node.edges = edges
+
+    return root_node
 
 def save_scan_result(path: str, data: FileNode) -> str:
     """
