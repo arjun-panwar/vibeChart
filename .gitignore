@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.venv
+env/
+venv/
+.idea/
+.vscode/
+# Temporary test outputs
+scan_output.json
+scan_output_qa.json

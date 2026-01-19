@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "vibe-chart-backend"
+version = "0.1.0"
+description = "Backend for Vibe Chart file scanner"
+authors = ["Your Name <your@email.com>"]
+readme = "README.md"
+packages = [{include = "backend"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.0"
+uvicorn = "^0.30.0"
+pydantic = "^2.8.0"
+pathspec = "^1.0.3"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.0"
+ruff = "^0.5.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
