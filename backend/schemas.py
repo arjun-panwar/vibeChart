@@ -16,6 +16,23 @@ class ConfigResponse(BaseModel):
     """
     defaultTheme: str
 
+class ImportItem(BaseModel):
+    """
+    Represents an imported module or name.
+    """
+    module: Optional[str] = None # e.g. "os" or "backend.services"
+    name: Optional[str] = None   # e.g. "path" or "Scanner" (for from ... import ...)
+    alias: Optional[str] = None  # e.g. "p" (for import pandas as p)
+
+class CallContext(BaseModel):
+    """
+    Represents a function call with context for resolution.
+    """
+    func_name: str
+    receiver_name: Optional[str] = None # e.g. "obj" in "obj.method()"
+    inferred_type: Optional[str] = None # e.g. "MyClass"
+    lineno: int = 0
+
 class FileNode(BaseModel):
     """
     Represents a node in the file system or code structure graph.
@@ -35,8 +52,12 @@ class FileNode(BaseModel):
     type: str  # "folder" or "file" or "class" or "function"
     children: Optional[List["FileNode"]] = None
     last_analyzed: Optional[str] = None
-    calls: Optional[List[str]] = None  # List of function IDs called by this node
+    calls: Optional[List[str]] = None  # List of function IDs called by this node (final resolved IDs)
+    unresolved_calls: Optional[List["CallContext"]] = None # Raw call data for resolution phase
+    imports: Optional[List["ImportItem"]] = None # List of imports in this file
     edges: Optional[List[Dict[str, str]]] = None  # List of resolved edges (only on root?)
     description: Optional[str] = None
 
 FileNode.model_rebuild()
+CallContext.model_rebuild()
+ImportItem.model_rebuild()

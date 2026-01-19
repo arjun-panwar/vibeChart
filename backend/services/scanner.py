@@ -84,6 +84,7 @@ def scan_directory(path: str) -> FileNode:
         node_id = str(current_path)
 
         children: Optional[List[FileNode]] = None
+        imports = None
 
         if current_path.is_dir():
             children = []
@@ -101,7 +102,7 @@ def scan_directory(path: str) -> FileNode:
         # Parse Python files
         elif current_path.suffix == ".py":
             from backend.services.parser import parse_python_file
-            children, module_doc = parse_python_file(str(current_path))
+            children, module_doc, imports = parse_python_file(str(current_path))
             description = module_doc if module_doc else "Python Script"
         else:
             description = "File"
@@ -111,7 +112,8 @@ def scan_directory(path: str) -> FileNode:
             name=node_name if node_name else str(current_path),
             type=node_type,
             children=children,
-            description=description
+            description=description,
+            imports=imports
         )
 
     # 1. First pass: Scan structure
@@ -139,30 +141,117 @@ def scan_directory(path: str) -> FileNode:
     # 3. Resolve Calls -> Edges
     edges = []
     
-    def resolve_calls(node: FileNode):
-        if node.calls:
+    
+    # 2.5 Build Global Class Index: ClassName -> FilePath
+    # This helps resolving "from module import ClassName" to the defining file.
+    class_index = {}
+    
+    def build_class_index(node: FileNode):
+        if node.type == "class":
+            class_index[node.name] = node.id
+        if node.children:
+            for child in node.children:
+                build_class_index(child)
+    
+    build_class_index(root_node)
+
+    # 3. Resolve Calls -> Edges
+    edges = []
+    
+    def resolve_calls(node: FileNode, file_imports: Optional[List[object]] = None):
+        # Propagate imports down from file node to its children (classes/functions)
+        if node.type == "file" and node.imports:
+            file_imports = node.imports
+            
+        if node.unresolved_calls:
             resolved_calls = []
-            for call_name in node.calls:
-                # Naive resolution: find first match in symbol table
-                if call_name in symbol_table:
-                    target_ids = symbol_table[call_name]
-                    target_id = target_ids[0]
+            
+            for call_ctx in node.unresolved_calls:
+                 # call_ctx has func_name, receiver_name, inferred_type
+                 
+                 found_target_id = None
+                 
+                 # Strategy 1: Type-Based Resolution
+                 if call_ctx.inferred_type:
+                     # 1.1 Check if Type is defined in the current file (or same package logic?)
+                     # For now, let's treat inferred_type as a Class Name.
+                     
+                     # 1.2 Check imports to find where this Type is defined
+                     type_def_file = None
+                     
+                     # Check current file classes
+                     # (Simplification: if class_index has it and it shares prefix?)
+                     # Better: Check if type is imported
+                     
+                     if file_imports:
+                         for imp in file_imports:
+                             if imp.name == call_ctx.inferred_type or imp.alias == call_ctx.inferred_type:
+                                 # Found import! "from module import Class" or "import module as alias"
+                                 # We need to resolve 'module' to a file path.
+                                 # This is hard without full dependency graph.
+                                 # Heuristic: Check class_index for the original name
+                                 original_name = imp.name if imp.name else call_ctx.inferred_type
+                                 if original_name in class_index:
+                                     # We have a candidate class!
+                                     candidate_id = class_index[original_name]
+                                     
+                                     # Now look for the function inside this class
+                                     # The ID should be candidate_id::func_name
+                                     potential_id = f"{candidate_id}::{call_ctx.func_name}"
+                                     
+                                     # Verify it exists in symbol table
+                                     if call_ctx.func_name in symbol_table:
+                                         if potential_id in symbol_table[call_ctx.func_name]:
+                                             found_target_id = potential_id
+                                             break
+                     
+                     # If still not found, check global class index matching inferred_type name directly
+                     if not found_target_id and call_ctx.inferred_type in class_index:
+                         candidate_id = class_index[call_ctx.inferred_type]
+                         potential_id = f"{candidate_id}::{call_ctx.func_name}"
+                         if call_ctx.func_name in symbol_table and potential_id in symbol_table[call_ctx.func_name]:
+                             found_target_id = potential_id
+
+                 # Strategy 2: Fallback / Name-Based Resolution (Original Logic + Import Heuristics)
+                 if not found_target_id and call_ctx.func_name in symbol_table:
+                    target_ids = symbol_table[call_ctx.func_name]
                     
-                    resolved_calls.append(target_id)
+                    # 2.1 Heuristic: Nearest Match (Longest Common Prefix)
+                    best_target_id = target_ids[0]
+                    max_prefix_len = -1
                     
-                    if target_id != node.id:
+                    for tid in target_ids:
+                        common_len = 0
+                        min_len = min(len(node.id), len(tid))
+                        while common_len < min_len and node.id[common_len] == tid[common_len]:
+                            common_len += 1
+                        
+                        # Boost score if the target's module is imported in current file
+                        # This is a bit tricky with absolute paths. 
+                        # We can check if ANY import module matches the target path part.
+                        
+                        if common_len > max_prefix_len:
+                            max_prefix_len = common_len
+                            best_target_id = tid
+                            
+                    found_target_id = best_target_id
+
+                 if found_target_id:
+                    resolved_calls.append(found_target_id)
+                    
+                    if found_target_id != node.id:
                         edges.append({
                             "source": node.id,
-                            "target": target_id,
-                            "id": f"{node.id}-{target_id}"
+                            "target": found_target_id,
+                            "id": f"{node.id}-{found_target_id}"
                         })
             
-            # Update calls with ONLY resolved IDs (filtering out built-ins/externals)
+            # Update calls with ONLY resolved IDs
             node.calls = resolved_calls if resolved_calls else None
                         
         if node.children:
             for child in node.children:
-                resolve_calls(child)
+                resolve_calls(child, file_imports)
                 
     resolve_calls(root_node)
     
