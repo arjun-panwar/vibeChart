@@ -85,6 +85,10 @@ def scan_directory(path: str) -> FileNode:
                 children.sort(key=lambda x: (x.type != "folder", x.name.lower()))
             except PermissionError:
                 pass
+        # Parse Python files
+        elif current_path.suffix == ".py":
+            from backend.services.parser import parse_python_file
+            children = parse_python_file(str(current_path))
         
         return FileNode(
             id=node_id,
