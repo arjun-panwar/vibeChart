@@ -35,7 +35,7 @@ class FileNode(BaseModel):
     type: str  # "folder" or "file" or "class" or "function"
     children: Optional[List["FileNode"]] = None
     last_analyzed: Optional[str] = None
-    calls: Optional[List[str]] = None  # List of function names called by this node
+    calls: Optional[List[str]] = None  # List of function IDs called by this node
     edges: Optional[List[Dict[str, str]]] = None  # List of resolved edges (only on root?)
     description: Optional[str] = None
 

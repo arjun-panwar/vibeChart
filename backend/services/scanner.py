@@ -141,11 +141,14 @@ def scan_directory(path: str) -> FileNode:
     
     def resolve_calls(node: FileNode):
         if node.calls:
+            resolved_calls = []
             for call_name in node.calls:
                 # Naive resolution: find first match in symbol table
                 if call_name in symbol_table:
                     target_ids = symbol_table[call_name]
                     target_id = target_ids[0]
+                    
+                    resolved_calls.append(target_id)
                     
                     if target_id != node.id:
                         edges.append({
@@ -153,6 +156,10 @@ def scan_directory(path: str) -> FileNode:
                             "target": target_id,
                             "id": f"{node.id}-{target_id}"
                         })
+            
+            # Update calls with resolved IDs
+            if resolved_calls:
+                 node.calls = resolved_calls
                         
         if node.children:
             for child in node.children:
