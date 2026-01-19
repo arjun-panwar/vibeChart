@@ -12,6 +12,7 @@ fastapi = "^0.115.0"
 uvicorn = "^0.30.0"
 pydantic = "^2.8.0"
 pathspec = "^1.0.3"
+pyyaml = "^6.0.3"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.0"

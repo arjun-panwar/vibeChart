@@ -1,0 +1,5 @@
+# VibeChart Configuration
+
+# Default Theme: 'light' or 'dark'
+# If not set, defaults to system preference.
+default_theme: dark

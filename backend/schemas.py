@@ -10,6 +10,12 @@ class ScanRequest(BaseModel):
     """
     path: str
 
+class ConfigResponse(BaseModel):
+    """
+    Response model for application configuration.
+    """
+    defaultTheme: str
+
 class FileNode(BaseModel):
     """
     Represents a node in the file system or code structure graph.
