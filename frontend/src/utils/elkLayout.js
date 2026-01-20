@@ -7,29 +7,22 @@ const VISUAL_NODE_HEIGHT = 80;
 
 export const getElkLayoutedElements = async (nodes, edges) => {
     const elkOptions = {
-        'elk.algorithm': 'layered',
+        'elk.algorithm': 'mrtree',
         'elk.direction': 'DOWN',
-        'elk.hierarchyHandling': 'INCLUDE_CHILDREN', // Key for compound layout
+
+        // CRITICAL: Stop trying to make it square!
+        'elk.aspectRatio': undefined,
+
+        'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+
+        // CRITICAL: Respect my node order!
+        // 'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES', // Not applicable to mrtree
 
         // Vertical Spacing
-        'elk.layered.spacing.nodeNodeBetweenLayers': '150',
-
-        // Strategy
-        'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
-        'elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
-
-        // Horizontal Spacing
-        'elk.spacing.nodeNode': '80', // Minimum gap betwen siblings
+        // 'elk.layered.spacing.nodeNodeBetweenLayers': '150', // Not applicable
+        'elk.spacing.nodeNode': '100', // Sibling gap
 
         // Edges
-        // 'elk.edgeRouting': 'ORTHOGONAL', // DISABLED to verify if it causes crash
-        // 'elk.layered.mergeEdges': 'true', // DISABLED: Suspected cause of crash with hierarchy
-        // 'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
-
-        // Padding inside the "Compound" node (reserved space)
-        // We need enough top padding to place the visual folder node (80px) plus some gap
-        // 'elk.padding': '[top=100,left=30,bottom=30,right=30]', 
-
         'elk.spacing.edgeNode': '30',
         'elk.spacing.edgeEdge': '25',
     };

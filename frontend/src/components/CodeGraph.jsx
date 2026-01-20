@@ -28,8 +28,7 @@ const edgeTypes = {
 };
 
 // Dagre graph setup removed
-
-// Dagre getLayoutedElements removed
+// ELK layout integration handled in getElkLayoutedElements
 
 const CodeGraph = ({ rootData }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -564,6 +563,7 @@ const CodeGraph = ({ rootData }) => {
                 onMove={onMove}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
+                minZoom={0.1}
                 fitView
             >
                 <Controls />
