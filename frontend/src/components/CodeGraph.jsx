@@ -6,7 +6,7 @@ import ReactFlow, {
     Controls,
     Background
 } from 'reactflow';
-import dagre from 'dagre';
+import { getElkLayoutedElements } from '../utils/elkLayout';
 import 'reactflow/dist/style.css';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -14,6 +14,7 @@ import FolderNode from './nodes/FolderNode';
 import FileNode from './nodes/FileNode';
 import ClassNode from './nodes/ClassNode';
 import FunctionNode from './nodes/FunctionNode';
+import InteractiveEdge from './edges/InteractiveEdge';
 
 const nodeTypes = {
     folder: FolderNode,
@@ -22,45 +23,13 @@ const nodeTypes = {
     function: FunctionNode
 };
 
-// Dagre graph setup
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
-
-const nodeWidth = 172;
-const nodeHeight = 80; // approximate
-
-const getLayoutedElements = (nodes, edges) => {
-    dagreGraph.setGraph({ rankdir: 'TB' });
-
-    nodes.forEach((node) => {
-        dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
-    });
-
-    edges.forEach((edge) => {
-        dagreGraph.setEdge(edge.source, edge.target);
-    });
-
-    dagre.layout(dagreGraph);
-
-    const layoutedNodes = nodes.map((node) => {
-        const nodeWithPosition = dagreGraph.node(node.id);
-        // adjust for center anchor
-        node.targetPosition = 'top';
-        node.sourcePosition = 'bottom';
-
-        // We are shifting the dagre node position (which is top left) to React Flow (top left)
-        // Actually dagre node position is center. React Flow is top left.
-        // Wait, dagre node() returns x, y which is center.
-        node.position = {
-            x: nodeWithPosition.x - nodeWidth / 2,
-            y: nodeWithPosition.y - nodeHeight / 2,
-        };
-
-        return node;
-    });
-
-    return { nodes: layoutedNodes, edges };
+const edgeTypes = {
+    interactive: InteractiveEdge,
 };
+
+// Dagre graph setup removed
+
+// Dagre getLayoutedElements removed
 
 const CodeGraph = ({ rootData }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -72,6 +41,7 @@ const CodeGraph = ({ rootData }) => {
 
     const [autoFit, setAutoFit] = useState(true);
     const [centerNode, setCenterNode] = useState(false);
+    const [isLayoutLocked, setIsLayoutLocked] = useState(false);
     const [activeConnectionNodeId, setActiveConnectionNodeId] = useState(null);
     const [zoomLevel, setZoomLevel] = useState(1);
 
@@ -219,6 +189,7 @@ const CodeGraph = ({ rootData }) => {
                     source: pid,
                     target: n.id,
                     type: 'smoothstep',
+                    pathOptions: { borderRadius: 20 },
                     style: { stroke: '#ccc' }
                 });
             }
@@ -249,9 +220,14 @@ const CodeGraph = ({ rootData }) => {
                             id: edgeId,
                             source: sourceAnchor,
                             target: targetAnchor,
+                            type: 'interactive',
+                            data: {
+                                targetId: targetAnchor,
+                                hasHiddenTarget: targetAnchor !== edge.target
+                            },
                             animated: true,
                             style: { stroke: getEdgeColor(edgeId), strokeWidth: 2 },
-                            label: 'calls',
+                            label: '', // Label handled by renderer now
                             hidden: !shouldShowEdge(sourceAnchor, targetAnchor)
                         });
                     }
@@ -340,33 +316,47 @@ const CodeGraph = ({ rootData }) => {
         const finalEdges = generateEdges(newNodes, activeConnectionNodeId);
 
         // 3. Re-calculate layout
-        const layouted = getLayoutedElements(newNodes, finalEdges);
-        setNodes([...layouted.nodes]);
-        setEdges([...layouted.edges]);
+        if (!isLayoutLocked) {
+            getElkLayoutedElements(newNodes, finalEdges).then(layouted => {
+                setNodes([...layouted.nodes]);
+                setEdges([...layouted.edges]);
+            });
+        } else {
+            setNodes(newNodes);
+            setEdges(finalEdges);
+        }
 
         // Camera Logic (User Request)
         if (rfInstance) {
-            const updatedNode = layouted.nodes.find(n => n.id === node.id);
-            if (updatedNode) {
-                setTimeout(() => {
-                    if (autoFit) {
-                        // Option A: Fit Canvas (Global)
-                        rfInstance.fitView({ duration: 800, padding: 0.1 });
-                    } else if (centerNode) {
-                        // Option B: Center Expanded Node (Local)
+            // Need to wait for layout if not locked?
+            // Since layout is async, we should ideally wait. 
+            // But simple timeout works for now as layout is fast for small graphs.
+            // Better: use useEffect but that triggers on all node changes.
+
+            setTimeout(() => {
+                // Find node in updated state if possible, or just use passed node id (position might be stale if async layout hasn't finished)
+                // Actually if we use async layout, setNodes is called later.
+                // We should move camera logic to a useEffect that watches layout changes?
+                // For simplicity, we keep it here but with a slightly longer delay or just accept it might lag slightly behind layout.
+
+                if (autoFit) {
+                    rfInstance.fitView({ duration: 800, padding: 0.1 });
+                } else if (centerNode) {
+                    const n = newNodes.find(x => x.id === node.id);
+                    if (n) {
                         rfInstance.fitView({
-                            nodes: [updatedNode],
+                            nodes: [n],
                             duration: 800,
                             padding: 0.5,
                             minZoom: 0.5,
                             maxZoom: 1.5
                         });
                     }
-                }, 50);
-            }
+                }
+            }, 300); // Increased delay for async ELK
         }
 
-    }, [nodes, rootData, parentMap, setNodes, setEdges, handleGoToParent, findNodeData, updateBreadcrumbs, rfInstance, autoFit, centerNode, activeConnectionNodeId, handleToggleConnections, generateEdges]);
+    }, [nodes, rootData, parentMap, setNodes, setEdges, handleGoToParent, findNodeData, updateBreadcrumbs, rfInstance, autoFit, centerNode, activeConnectionNodeId, handleToggleConnections, generateEdges, isLayoutLocked]);
 
     const onEdgeClick = useCallback((event, edge) => {
         if (edge.id.startsWith('flow-') && rfInstance && autoFit) {
@@ -497,6 +487,17 @@ const CodeGraph = ({ rootData }) => {
                 </label>
 
                 <div style={{ width: '1px', height: '16px', background: 'var(--text-color)', opacity: 0.2 }}></div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={isLayoutLocked}
+                        onChange={e => setIsLayoutLocked(e.target.checked)}
+                    />
+                    Lock Layout
+                </label>
+
+                <div style={{ width: '1px', height: '16px', background: 'var(--text-color)', opacity: 0.2 }}></div>
                 <span style={{ opacity: 0.8 }}>Zoom</span>
                 <input
                     type="range"
@@ -560,6 +561,7 @@ const CodeGraph = ({ rootData }) => {
                 onInit={setRfInstance}
                 onMove={onMove}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 fitView
             >
                 <Controls />
