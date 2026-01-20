@@ -124,25 +124,27 @@ const InteractiveEdge = ({
                     }}
                     className="nodrag nopan"
                 >
-                    <button
-                        className="edge-button"
-                        onClick={handleNavigation}
-                        title="Go to Target"
-                        style={{
-                            borderRadius: '50%',
-                            width: '24px',
-                            height: '24px',
-                            border: '1px solid var(--node-border)',
-                            background: 'var(--bg-color)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                        }}
-                    >
-                        ➤
-                    </button>
+                    {!data?.isHierarchy && (
+                        <button
+                            className="edge-button"
+                            onClick={handleNavigation}
+                            title="Go to Target"
+                            style={{
+                                borderRadius: '50%',
+                                width: '24px',
+                                height: '24px',
+                                border: '1px solid var(--node-border)',
+                                background: 'var(--bg-color)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            }}
+                        >
+                            ➤
+                        </button>
+                    )}
                     {data?.hasHiddenTarget && (
                         <div style={{
                             position: 'absolute',

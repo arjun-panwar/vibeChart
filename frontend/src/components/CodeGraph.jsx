@@ -188,9 +188,11 @@ const CodeGraph = ({ rootData }) => {
                     id: `${pid}-${n.id}`,
                     source: pid,
                     target: n.id,
-                    type: 'smoothstep',
-                    pathOptions: { borderRadius: 20 },
-                    style: { stroke: '#ccc' }
+                    type: 'interactive', // Use interactive to support ELK path data
+                    data: {
+                        isHierarchy: true // Flag to hide potential interactive controls
+                    },
+                    style: { stroke: '#ccc', strokeWidth: 2 }
                 });
             }
         });
