@@ -181,6 +181,107 @@ body {
   box-shadow: 0 0 10px rgba(255, 0, 114, 0.3);
 }
 
-/* Indicators for folder status via data attributes or just simple CSS classes if we added them 
-   Since we added logic in layout.js to set style, we can rely on that, but global hover is good.
-*/
+/* Type Specific Styles */
+/* Folder: Indigo background */
+.react-flow__node-default.type-folder {
+  background: #4338ca;
+  /* Indigo-700 */
+  border-color: #6366f1;
+  color: #ffffff;
+}
+
+.react-flow__node-default.type-folder:hover {
+  background: #4f46e5;
+  /* Indigo-600 */
+  box-shadow: 0 0 0 2px #6366f1;
+}
+
+/* File: Neutral Grey background (Default) */
+.react-flow__node-default.type-file {
+  background: #374151;
+  /* Gray-700 */
+  border-color: #4b5563;
+  color: #ffffff;
+}
+
+.react-flow__node-default.type-file:hover {
+  background: #4b5563;
+  /* Gray-600 */
+}
+
+/* Extension Specific Overrides provided by type-file + ext-xyz */
+
+/* Python: Blue/Yellow hint (Using a deep blue/green) */
+.react-flow__node-default.type-file.ext-py {
+  background: #1e3a8a;
+  /* Blue-900 */
+  border-color: #3b82f6;
+}
+
+.react-flow__node-default.type-file.ext-py:hover {
+  background: #1d4ed8;
+  /* Blue-700 */
+}
+
+/* JavaScript/JSX: Yellow/Amber hint */
+.react-flow__node-default.type-file.ext-js,
+.react-flow__node-default.type-file.ext-jsx {
+  background: #78350f;
+  /* Amber-900 (Brownish) */
+  border-color: #f59e0b;
+}
+
+.react-flow__node-default.type-file.ext-js:hover,
+.react-flow__node-default.type-file.ext-jsx:hover {
+  background: #b45309;
+  /* Amber-700 */
+}
+
+/* CSS: Blue/Cyan */
+.react-flow__node-default.type-file.ext-css {
+  background: #164e63;
+  /* Cyan-900 */
+  border-color: #06b6d4;
+}
+
+/* JSON: Green */
+.react-flow__node-default.type-file.ext-json {
+  background: #14532d;
+  /* Green-900 */
+  border-color: #22c55e;
+}
+
+/* Markdown: Purple */
+.react-flow__node-default.type-file.ext-md {
+  background: #581c87;
+  /* Purple-900 */
+  border-color: #a855f7;
+}
+
+/* Class: Amber/Orange background */
+.react-flow__node-default.type-class {
+  background: #b45309;
+  /* Amber-700 */
+  border-color: #d97706;
+  color: #ffffff;
+}
+
+.react-flow__node-default.type-class:hover {
+  background: #d97706;
+  /* Amber-600 */
+  box-shadow: 0 0 0 2px #fbbf24;
+}
+
+/* Function: Pink background */
+.react-flow__node-default.type-function {
+  background: #be185d;
+  /* Pink-700 */
+  border-color: #db2777;
+  color: #ffffff;
+}
+
+.react-flow__node-default.type-function:hover {
+  background: #db2777;
+  /* Pink-600 */
+  box-shadow: 0 0 0 2px #f472b6;
+}

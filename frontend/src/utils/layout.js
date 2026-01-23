@@ -49,6 +49,7 @@ export const getLayoutedElements = (rootFileNode, expandedIds) => {
                 ...d.data
             },
             type: 'default', // Using default for now, can be custom
+            className: `type-${d.data.type}${d.data.type === 'file' && d.data.name.includes('.') ? ` ext-${d.data.name.split('.').pop().toLowerCase()}` : ''}`,
             sourcePosition: 'bottom',
             targetPosition: 'top',
             style: {
