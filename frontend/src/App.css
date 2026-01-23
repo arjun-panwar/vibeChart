@@ -155,3 +155,32 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* React Flow Node Styling Overrides */
+.react-flow__node-default {
+  background: #2a2a2a;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 8px;
+  width: auto;
+  min-width: 150px;
+  padding: 10px;
+  font-size: 12px;
+  text-align: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+.react-flow__node-default:hover {
+  box-shadow: 0 0 0 2px #555;
+  transform: translateY(-2px);
+}
+
+.react-flow__node-default.selected {
+  border-color: #ff0072;
+  box-shadow: 0 0 10px rgba(255, 0, 114, 0.3);
+}
+
+/* Indicators for folder status via data attributes or just simple CSS classes if we added them 
+   Since we added logic in layout.js to set style, we can rely on that, but global hover is good.
+*/

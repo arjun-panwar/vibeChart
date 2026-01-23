@@ -13,16 +13,39 @@ import { getLayoutedElements } from '../utils/layout';
 const CodeGraph = ({ data }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [expandedNodeIds, setExpandedNodeIds] = React.useState(new Set());
+
+    // Initialize/Reset expansion when data loads
+    useEffect(() => {
+        if (data) {
+            // Start with only the root expanded
+            setExpandedNodeIds(new Set([data.id]));
+        }
+    }, [data]);
 
     useEffect(() => {
         if (data) {
-            const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(data);
+            // Re-calculate layout whenever data or expansion state changes
+            const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(data, expandedNodeIds);
             setNodes(layoutedNodes);
             setEdges(layoutedEdges);
         }
-    }, [data, setNodes, setEdges]);
+    }, [data, expandedNodeIds, setNodes, setEdges]);
 
     const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+
+    const onNodeClick = useCallback((event, node) => {
+        // Toggle expansion
+        if (node.data.children && node.data.children.length > 0) {
+            const newExpanded = new Set(expandedNodeIds);
+            if (newExpanded.has(node.id)) {
+                newExpanded.delete(node.id);
+            } else {
+                newExpanded.add(node.id);
+            }
+            setExpandedNodeIds(newExpanded);
+        }
+    }, [expandedNodeIds]);
 
     return (
         <div style={{ width: '100%', height: '100%' }}>
@@ -32,6 +55,7 @@ const CodeGraph = ({ data }) => {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                onNodeClick={onNodeClick}
                 connectionLineType={ConnectionLineType.SmoothStep}
                 fitView
             >

@@ -3,32 +3,39 @@ import { tree, hierarchy } from 'd3-hierarchy';
 const nodeWidth = 250;
 const nodeHeight = 80;
 
-export const getLayoutedElements = (rootFileNode) => {
+export const getLayoutedElements = (rootFileNode, expandedIds) => {
     if (!rootFileNode) return { nodes: [], edges: [] };
 
     // 1. Create D3 hierarchy
     const d3Hierarchy = hierarchy(rootFileNode);
 
-    // 2. Setup D3 Tree Layout
-    // nodeSize allows us to define spacing [width, height] usually, 
-    // but for d3.tree content size. 
-    // Actually, d3.tree().nodeSize([height, width]) creates a layout where 
-    // x and y are computed based on these dimensions.
-    // Let's use a dynamic size or just nodeSize.
-    // For a horizontal tree, we usually swap x and y.
-    // Let's stick to a standard vertical tree for now, or maybe horizontal if it's deep.
-    // Codebases are usually deep. Horizontal might be better?
-    // Let's try Vertical first (Standard).
+    // 2. Prune hierarchy based on expansion state
+    // If a node is not in expandedIds, hide its children
+    if (expandedIds) {
+        const prune = (node) => {
+            if (!expandedIds.has(node.data.id)) {
+                node.children = undefined;
+            } else if (node.children) {
+                node.children.forEach(prune);
+            }
+        };
+        prune(d3Hierarchy);
+    }
 
+    // 3. Setup D3 Tree Layout
     const layout = tree().nodeSize([nodeWidth, nodeHeight * 2]);
-
     const d3Root = layout(d3Hierarchy);
 
     const nodes = [];
     const edges = [];
 
-    // 3. Convert D3 nodes to React Flow nodes and Structural Edges
+    // Track visible nodes for edge filtering
+    const visibleNodeIds = new Set();
+
+    // 4. Convert D3 nodes to React Flow nodes and Structural Edges
     d3Root.descendants().forEach((d) => {
+        visibleNodeIds.add(d.data.id);
+
         nodes.push({
             id: d.data.id,
             position: { x: d.x, y: d.y },
@@ -37,12 +44,18 @@ export const getLayoutedElements = (rootFileNode) => {
                 type: d.data.type,
                 // Helper data for styling
                 depth: d.depth,
+                isExpanded: expandedIds ? expandedIds.has(d.data.id) : true,
+                hasChildren: !!(d.data.children && d.data.children.length > 0),
                 ...d.data
             },
             type: 'default', // Using default for now, can be custom
-            // We can create custom node types later (FolderNode, FileNode etc)
             sourcePosition: 'bottom',
             targetPosition: 'top',
+            style: {
+                cursor: 'pointer',
+                // Visual feedback for folders that can be expanded
+                border: (d.data.children && d.data.children.length > 0) ? '1px solid #777' : '1px solid #333',
+            }
         });
 
         if (d.parent) {
@@ -56,19 +69,21 @@ export const getLayoutedElements = (rootFileNode) => {
         }
     });
 
-    // 4. Add Data Flow Edges (Call Graph)
-    // The root node from backend contains "edges" which are the data flow calls.
+    // 5. Add Data Flow Edges (Call Graph)
+    // Only add edges if BOTH source and target are visible
     if (rootFileNode.edges) {
         rootFileNode.edges.forEach((edge) => {
-            edges.push({
-                id: edge.id,
-                source: edge.source,
-                target: edge.target,
-                animated: true,
-                style: { stroke: '#ff0072', strokeWidth: 2 },
-                label: 'calls',
-                type: 'smoothstep', // or 'default'
-            });
+            if (visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)) {
+                edges.push({
+                    id: edge.id,
+                    source: edge.source,
+                    target: edge.target,
+                    animated: true,
+                    style: { stroke: '#ff0072', strokeWidth: 2 },
+                    label: 'calls',
+                    type: 'smoothstep',
+                });
+            }
         });
     }
 
