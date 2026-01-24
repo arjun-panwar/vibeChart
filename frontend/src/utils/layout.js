@@ -71,19 +71,53 @@ export const getLayoutedElements = (rootFileNode, expandedIds) => {
     });
 
     // 5. Add Data Flow Edges (Call Graph)
-    // Only add edges if BOTH source and target are visible
+    // Dynamic Edge Routing: "Roll up" edges to the nearest visible ancestor
+
+    // 5.1 Build a map of ID -> D3Node for easy traversal from raw edge IDs
+    // We need the FULL hierarchy to traverse up from hidden nodes
+    const fullHierarchy = hierarchy(rootFileNode);
+    const idToNodeMap = new Map();
+    fullHierarchy.descendants().forEach(d => {
+        idToNodeMap.set(d.data.id, d);
+    });
+
+    // 5.2 Helper to find the nearest visible ancestor
+    const findVisibleAncestor = (nodeId) => {
+        let current = idToNodeMap.get(nodeId);
+        while (current) {
+            if (visibleNodeIds.has(current.data.id)) {
+                return current.data.id;
+            }
+            current = current.parent;
+        }
+        return null; // Should ideally not happen if root is visible
+    };
+
     if (rootFileNode.edges) {
+        const uniqueEdges = new Set();
+
         rootFileNode.edges.forEach((edge) => {
-            if (visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)) {
-                edges.push({
-                    id: edge.id,
-                    source: edge.source,
-                    target: edge.target,
-                    animated: true,
-                    style: { stroke: '#ff0072', strokeWidth: 2 },
-                    label: 'calls',
-                    type: 'smoothstep',
-                });
+            const sourceVisibleId = findVisibleAncestor(edge.source);
+            const targetVisibleId = findVisibleAncestor(edge.target);
+
+            // Only add if we found visible nodes for both ends AND they are different nodes
+            // (Self-loops on folders might be noisy)
+            if (sourceVisibleId && targetVisibleId && sourceVisibleId !== targetVisibleId) {
+                const edgeKey = `${sourceVisibleId}-${targetVisibleId}`;
+
+                if (!uniqueEdges.has(edgeKey)) {
+                    uniqueEdges.add(edgeKey);
+
+                    edges.push({
+                        id: `flow-${edgeKey}`, // Unique ID for the rolled-up edge
+                        source: sourceVisibleId,
+                        target: targetVisibleId,
+                        animated: true,
+                        style: { stroke: '#ff0072', strokeWidth: 2 },
+                        label: 'calls',
+                        type: 'smoothstep',
+                    });
+                }
             }
         });
     }
